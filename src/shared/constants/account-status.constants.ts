@@ -1,0 +1,25 @@
+export const ACCOUNT_STATUS = {
+  PENDING_ACTIVATION: 'PENDIENTE_ACTIVACION',
+  ACTIVE: 'ACTIVA',
+  TEMPORARILY_SUSPENDED: 'SUSPENDIDA_TEMPORAL',
+  PERMANENTLY_DEACTIVATED: 'DESACTIVADA_PERMANENTE',
+} as const;
+
+export type AccountStatus = (typeof ACCOUNT_STATUS)[keyof typeof ACCOUNT_STATUS];
+
+export const ACCOUNT_ROLES = {
+  ADMIN: 'ADMIN',
+  USER: 'USER',
+} as const;
+
+export type AccountRole = (typeof ACCOUNT_ROLES)[keyof typeof ACCOUNT_ROLES];
+
+export const DEACTIVATION_REASONS = {
+  RETIREMENT: 'RETIRO',
+  VACATION: 'VACACIONES',
+} as const;
+
+export const ACTIVATION_REASONS = {
+  INITIAL: 'ACTIVACION_INICIAL',
+  VACATION_END: 'FIN_VACACIONES',
+} as const;
