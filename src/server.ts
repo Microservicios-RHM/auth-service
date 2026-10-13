@@ -123,6 +123,7 @@ async function bootstrap(): Promise<void> {
         logger.error({ err: error }, 'HTTP server shutdown failed');
         process.exitCode = 1;
       }
+      consumer.stop();
       await brokerConnection.close();
       await pool.end();
       logger.info('Auth service stopped');
