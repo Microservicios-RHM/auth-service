@@ -1,5 +1,6 @@
 import express from 'express';
 import helmet from 'helmet';
+import { Counter, Registry, collectDefaultMetrics } from 'prom-client';
 import type { Logger } from 'pino';
 import { Login } from './application/use-cases/login.use-case.ts';
 import { RecoverPassword } from './application/use-cases/recover-password.use-case.ts';
@@ -29,6 +30,14 @@ export function createApp(
   logger: Logger,
 ) {
   const app = express();
+  const metricsRegistry = new Registry();
+  collectDefaultMetrics({ register: metricsRegistry, prefix: 'rhm_auth_' });
+  const httpRequests = new Counter({
+    name: 'rhm_auth_http_requests_total',
+    help: 'Total HTTP requests handled by auth-service',
+    labelNames: ['method', 'status'] as const,
+    registers: [metricsRegistry],
+  });
   const controller = new AuthController(
     new Login(repository, hasher, tokens),
     new RecoverPassword(repository, tokens, eventPublisher),
@@ -37,6 +46,14 @@ export function createApp(
   );
 
   app.disable('x-powered-by');
+  app.use((request, response, next) => {
+    response.on('finish', () => httpRequests.inc({ method: request.method, status: String(response.statusCode) }));
+    next();
+  });
+  app.get('/metrics', async (_request, response) => {
+    response.setHeader('Content-Type', metricsRegistry.contentType);
+    response.send(await metricsRegistry.metrics());
+  });
   app.use(createRequestLogger(logger));
   app.use('/', documentationRouter);
   app.use(helmet());
