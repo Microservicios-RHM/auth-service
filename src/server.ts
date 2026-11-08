@@ -24,7 +24,9 @@ import {
   EVENT_PRODUCER,
 } from './shared/constants/event-types.constants.ts';
 import { DEACTIVATION_REASONS } from './shared/constants/account-status.constants.ts';
+import { startTelemetry, stopTelemetry } from './infrastructure/observability/telemetry.ts';
 
+startTelemetry();
 const config = loadConfig();
 const logger = createLogger(config.logging);
 const pool = createPostgresPool(config.database, logger);
@@ -126,6 +128,7 @@ async function bootstrap(): Promise<void> {
       consumer.stop();
       await brokerConnection.close();
       await pool.end();
+      await stopTelemetry();
       logger.info('Auth service stopped');
       process.exit();
     });
