@@ -1,0 +1,1075 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Auth API",
+    "version": "1.0.0",
+    "description": "Proveedor de identidad de la plataforma RHM. Emite el token de acceso que el API Gateway valida antes de enrutar hacia los microservicios de negocio, y gobierna el ciclo de vida de las cuentas a partir de los eventos del broker."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "API Gateway"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Autenticación"
+    },
+    {
+      "name": "Operación"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token obtenido en POST /auth/login. Pulse Authorize y pegue el valor de accessToken."
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "nullable": true,
+            "example": null
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INVALID_CREDENTIALS",
+                  "ACCOUNT_NOT_FOUND",
+                  "ACCOUNT_SUSPENDED",
+                  "ACCOUNT_DEACTIVATED",
+                  "ACCOUNT_NOT_ACTIVATED",
+                  "INVALID_TOKEN",
+                  "WEAK_PASSWORD",
+                  "VALIDATION_ERROR",
+                  "INVALID_JSON",
+                  "REQUEST_BODY_TOO_LARGE",
+                  "UNAUTHORIZED",
+                  "RESOURCE_NOT_FOUND",
+                  "INTERNAL_ERROR"
+                ]
+              },
+              "status": {
+                "type": "integer"
+              },
+              "path": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "code",
+              "status",
+              "path",
+              "timestamp"
+            ]
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "data",
+          "error"
+        ]
+      }
+    },
+    "responses": {
+      "Error400": {
+        "description": "Solicitud inválida o regla de validación incumplida.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Error401": {
+        "description": "Token ausente, inválido o credenciales incorrectas.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Error403": {
+        "description": "El usuario autenticado no tiene permiso para realizar la operación.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Error404": {
+        "description": "El recurso solicitado no existe.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Error409": {
+        "description": "La operación entra en conflicto con el estado actual del recurso.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Error503": {
+        "description": "El servicio o una dependencia crítica no está disponible.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Autentica un usuario y emite un token de acceso",
+        "description": "El token incluye los claims `sub` (identificador del empleado) y `role`. Una cuenta suspendida por vacaciones o desactivada por retiro no puede iniciar sesión.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "juan.perez@empresa.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "Secreta123"
+                  }
+                },
+                "required": [
+                  "username",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Autenticación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "accessToken": {
+                          "type": "string"
+                        },
+                        "expiraEn": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos de entrada inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "INVALID_CREDENTIALS",
+                            "ACCOUNT_NOT_FOUND",
+                            "ACCOUNT_SUSPENDED",
+                            "ACCOUNT_DEACTIVATED",
+                            "ACCOUNT_NOT_ACTIVATED",
+                            "INVALID_TOKEN",
+                            "WEAK_PASSWORD",
+                            "VALIDATION_ERROR",
+                            "INVALID_JSON",
+                            "REQUEST_BODY_TOO_LARGE",
+                            "UNAUTHORIZED",
+                            "RESOURCE_NOT_FOUND",
+                            "INTERNAL_ERROR"
+                          ]
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "status",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciales incorrectas, o cuenta suspendida o desactivada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "INVALID_CREDENTIALS",
+                            "ACCOUNT_NOT_FOUND",
+                            "ACCOUNT_SUSPENDED",
+                            "ACCOUNT_DEACTIVATED",
+                            "ACCOUNT_NOT_ACTIVATED",
+                            "INVALID_TOKEN",
+                            "WEAK_PASSWORD",
+                            "VALIDATION_ERROR",
+                            "INVALID_JSON",
+                            "REQUEST_BODY_TOO_LARGE",
+                            "UNAUTHORIZED",
+                            "RESOURCE_NOT_FOUND",
+                            "INTERNAL_ERROR"
+                          ]
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "status",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      }
+    },
+    "/auth/recover-password": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Solicita el restablecimiento de la contraseña",
+        "description": "Publica `usuario.recuperacion` con un token de corta duración. La respuesta es la misma exista o no la cuenta, para no revelar qué correos están registrados.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                },
+                "required": [
+                  "email"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Si el correo corresponde a una cuenta registrada, se enviarán las instrucciones de recuperación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "El email no tiene un formato válido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "INVALID_CREDENTIALS",
+                            "ACCOUNT_NOT_FOUND",
+                            "ACCOUNT_SUSPENDED",
+                            "ACCOUNT_DEACTIVATED",
+                            "ACCOUNT_NOT_ACTIVATED",
+                            "INVALID_TOKEN",
+                            "WEAK_PASSWORD",
+                            "VALIDATION_ERROR",
+                            "INVALID_JSON",
+                            "REQUEST_BODY_TOO_LARGE",
+                            "UNAUTHORIZED",
+                            "RESOURCE_NOT_FOUND",
+                            "INTERNAL_ERROR"
+                          ]
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "status",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Establece la contraseña con un token de activación o recuperación",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "nuevaPassword": {
+                    "type": "string",
+                    "format": "password",
+                    "minLength": 8
+                  }
+                },
+                "required": [
+                  "token",
+                  "nuevaPassword"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contraseña establecida correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "La contraseña no cumple la política de seguridad.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "INVALID_CREDENTIALS",
+                            "ACCOUNT_NOT_FOUND",
+                            "ACCOUNT_SUSPENDED",
+                            "ACCOUNT_DEACTIVATED",
+                            "ACCOUNT_NOT_ACTIVATED",
+                            "INVALID_TOKEN",
+                            "WEAK_PASSWORD",
+                            "VALIDATION_ERROR",
+                            "INVALID_JSON",
+                            "REQUEST_BODY_TOO_LARGE",
+                            "UNAUTHORIZED",
+                            "RESOURCE_NOT_FOUND",
+                            "INTERNAL_ERROR"
+                          ]
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "status",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "El token es inválido, expiró, o la cuenta está desactivada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "INVALID_CREDENTIALS",
+                            "ACCOUNT_NOT_FOUND",
+                            "ACCOUNT_SUSPENDED",
+                            "ACCOUNT_DEACTIVATED",
+                            "ACCOUNT_NOT_ACTIVATED",
+                            "INVALID_TOKEN",
+                            "WEAK_PASSWORD",
+                            "VALIDATION_ERROR",
+                            "INVALID_JSON",
+                            "REQUEST_BODY_TOO_LARGE",
+                            "UNAUTHORIZED",
+                            "RESOURCE_NOT_FOUND",
+                            "INTERNAL_ERROR"
+                          ]
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "status",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Cambia la contraseña del usuario autenticado",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "passwordActual": {
+                    "type": "string",
+                    "format": "password"
+                  },
+                  "nuevaPassword": {
+                    "type": "string",
+                    "format": "password",
+                    "minLength": 8
+                  }
+                },
+                "required": [
+                  "passwordActual",
+                  "nuevaPassword"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contraseña actualizada correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "La nueva contraseña no cumple la política o es igual a la actual.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "INVALID_CREDENTIALS",
+                            "ACCOUNT_NOT_FOUND",
+                            "ACCOUNT_SUSPENDED",
+                            "ACCOUNT_DEACTIVATED",
+                            "ACCOUNT_NOT_ACTIVATED",
+                            "INVALID_TOKEN",
+                            "WEAK_PASSWORD",
+                            "VALIDATION_ERROR",
+                            "INVALID_JSON",
+                            "REQUEST_BODY_TOO_LARGE",
+                            "UNAUTHORIZED",
+                            "RESOURCE_NOT_FOUND",
+                            "INTERNAL_ERROR"
+                          ]
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "status",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el token, es inválido, o la contraseña actual no coincide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "INVALID_CREDENTIALS",
+                            "ACCOUNT_NOT_FOUND",
+                            "ACCOUNT_SUSPENDED",
+                            "ACCOUNT_DEACTIVATED",
+                            "ACCOUNT_NOT_ACTIVATED",
+                            "INVALID_TOKEN",
+                            "WEAK_PASSWORD",
+                            "VALIDATION_ERROR",
+                            "INVALID_JSON",
+                            "REQUEST_BODY_TOO_LARGE",
+                            "UNAUTHORIZED",
+                            "RESOURCE_NOT_FOUND",
+                            "INTERNAL_ERROR"
+                          ]
+                        },
+                        "status": {
+                          "type": "integer"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "status",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Operación"
+        ],
+        "summary": "Verifica que el servicio responde",
+        "responses": {
+          "200": {
+            "description": "Servicio disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "example": "UP"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/Error503"
+          }
+        }
+      }
+    }
+  },
+  "x-versioned-snapshot": "Contrato versionado; mantener sincronizado con el endpoint OpenAPI del servicio."
+}
+
