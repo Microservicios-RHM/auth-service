@@ -111,7 +111,15 @@ async function bootstrap(): Promise<void> {
 
   await consumer.start();
 
-  const app = createApp(repository, hasher, tokens, eventPublisher, logger);
+  const app = createApp(repository, hasher, tokens, eventPublisher, logger, async () => {
+    const checks: Record<string, 'UP' | 'DOWN'> = { database: 'DOWN', broker: 'DOWN' };
+    try {
+      await pool.query('SELECT 1');
+      checks.database = 'UP';
+    } catch { /* reported as DOWN */ }
+    checks.broker = (await brokerConnection.ensureChannel()) ? 'UP' : 'DOWN';
+    return checks;
+  });
   const server = http.createServer(app);
 
   server.listen(config.port, '0.0.0.0', () => {

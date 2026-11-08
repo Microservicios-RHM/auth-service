@@ -13,7 +13,7 @@ import type { TokenService } from './domain/gateways/token-service.gateway.ts';
 import type { EventPublisher } from './domain/gateways/event-publisher.gateway.ts';
 import { AuthController } from './infrastructure/http/controllers/auth.controller.ts';
 import { createAuthRouter } from './infrastructure/http/routes/auth.routes.ts';
-import healthRouter from './infrastructure/http/routes/health.routes.ts';
+import { createHealthRouter, type HealthCheck } from './infrastructure/http/routes/health.routes.ts';
 import documentationRouter from './infrastructure/http/routes/documentation.routes.ts';
 import { createAuthenticator } from './infrastructure/http/middlewares/authenticate.middleware.ts';
 import { errorHandler } from './infrastructure/http/middlewares/error-handler.middleware.ts';
@@ -29,6 +29,7 @@ export function createApp(
   tokens: TokenService,
   eventPublisher: EventPublisher,
   logger: Logger,
+  healthCheck: HealthCheck = async () => ({ application: 'UP' }),
 ) {
   const app = express();
   const metricsRegistry = new Registry();
@@ -79,7 +80,7 @@ export function createApp(
   });
   app.use(express.json({ limit: '1mb' }));
 
-  app.use('/', healthRouter);
+  app.use('/', createHealthRouter(healthCheck));
   app.use('/auth', createAuthRouter(controller, createAuthenticator(tokens)));
 
   app.use((_req, res) => {
