@@ -12,8 +12,9 @@
     "start:dist": "node dist/server.js",
     "db:migrate": "node src/infrastructure/persistence/postgres/migrations/migration.runner.ts",
     "db:migrate:dist": "node dist/infrastructure/persistence/postgres/migrations/migration.runner.js",
-    "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage"
+    "test": "node --test --experimental-strip-types tests/**/*.test.ts",
+    "test:coverage": "node --test --experimental-strip-types --experimental-test-coverage tests/**/*.test.ts",
+    "test:ci": "node --test --experimental-strip-types --experimental-test-coverage --test-coverage-lines=70 --test-coverage-include=\"src/application/use-cases/login.use-case.ts\" --test-coverage-include=\"src/domain/password-policy.ts\" tests/**/*.test.ts"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
