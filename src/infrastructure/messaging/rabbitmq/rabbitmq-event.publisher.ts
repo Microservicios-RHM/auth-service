@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { context, propagation } from '@opentelemetry/api';
 import type { Logger } from 'pino';
 import type { DomainEvent, EventPublisher } from '../../../domain/gateways/event-publisher.gateway.ts';
 import type { RabbitMqConnection } from './rabbitmq.connection.ts';
@@ -41,10 +42,13 @@ export class RabbitmqEventPublisher implements EventPublisher {
       }
 
       await channel.assertExchange(this.exchange, EXCHANGE_TYPE, { durable: true });
+      const headers: Record<string, string> = {};
+      propagation.inject(context.active(), headers);
       channel.publish(this.exchange, event.type, Buffer.from(JSON.stringify(envelope)), {
         contentType: 'application/json',
         persistent: true,
         messageId: envelope.id,
+        headers,
       });
       this.logger.info({ eventType: event.type, eventId: envelope.id }, 'Event published');
     } catch (error) {
