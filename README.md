@@ -144,3 +144,16 @@ El despliegue recomendado se ejecuta desde `rhm-database-infrastructure`:
 cd ../rhm-database-infrastructure
 docker compose up -d --build
 ```
+
+## Observabilidad (Reto 8)
+
+Instrumentación de `auth-service` para el stack de observabilidad del ecosistema (Prometheus,
+Loki, Zipkin y Grafana). Arquitectura, dashboard, alertas y pruebas de caos en el
+[README de infraestructura](https://github.com/Microservicios-RHM/rhm-database-infrastructure#observabilidad-y-monitoreo-reto-8).
+
+| Pilar | Implementación |
+|---|---|
+| Métricas | `prom-client` — `GET /metrics`. Métricas comunes a los 7 servicios: `http_requests_total{method,route,status}`, `http_request_duration_seconds{method,route,status}`, `process_cpu_seconds_total`, `process_resident_memory_bytes`. |
+| Health | `GET /health` verifica PostgreSQL (`SELECT 1`) y la conexión a RabbitMQ. Formato `{"status":"UP","service":"auth-service","checks":{...}}`, 200 si todo está UP y 503 si algo está DOWN. |
+| Trazas | `@opentelemetry/sdk-trace` + `instrumentation-http`/`express`/`pg` + `exporter-zipkin`. El consumidor extrae `traceparent` de las cabeceras del mensaje y procesa cada evento en un span CONSUMER; los eventos `cuenta.*` que publica siguen la misma traza ([amqp-trace-context.ts](src/infrastructure/observability/amqp-trace-context.ts)). Es el eslabón central de la cascada scheduler de vacaciones → auth → notificaciones. Exporta a `OTEL_EXPORTER_ZIPKIN_ENDPOINT` con propagación W3C Trace Context; sin esa variable el tracing queda desactivado. |
+| Logs | `pino` con `timestamp`, `level` en mayúsculas, `service`, `traceId`, `message`. |

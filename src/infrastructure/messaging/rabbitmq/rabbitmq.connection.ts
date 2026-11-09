@@ -49,6 +49,11 @@ export class RabbitMqConnection {
     return this.channel;
   }
 
+  /** Reto 8: usado por GET /health (check messageBroker). */
+  isConnected(): boolean {
+    return this.channel !== null;
+  }
+
   async close(): Promise<void> {
     await this.channel?.close().catch(() => undefined);
     await this.connection?.close().catch(() => undefined);
