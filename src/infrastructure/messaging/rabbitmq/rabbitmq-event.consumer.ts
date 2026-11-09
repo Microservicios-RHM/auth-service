@@ -1,4 +1,5 @@
 import type { Logger } from 'pino';
+import { context, propagation, SpanKind, trace } from '@opentelemetry/api';
 import type { ProcessedEventRepository } from '../../../domain/repositories/processed-event.repository.ts';
 import type { RabbitMqConnection } from './rabbitmq.connection.ts';
 import { parseEnvelope, type EventEnvelope } from './event-envelope.ts';
@@ -55,7 +56,7 @@ export class RabbitmqEventConsumer {
 
       await channel.consume(this.queue, (message) => {
         if (!message) return;
-        void this.dispatch(message.content.toString(), message.fields.routingKey)
+        void this.dispatch(message.content.toString(), message.fields.routingKey, message.properties.headers)
           .then(() => channel.ack(message))
           .catch((error: unknown) => {
             this.logger.error(
@@ -94,7 +95,7 @@ export class RabbitmqEventConsumer {
 
   // Separado de start() para poder probar el parseo, la deduplicación y el despacho sin una
   // conexión real, igual que el consumer de ms-vacation.
-  async dispatch(body: string, routingKey: string): Promise<void> {
+  async dispatch(body: string, routingKey: string, headers: Record<string, unknown> = {}): Promise<void> {
     const handler = this.handlers.get(routingKey);
     if (!handler) return;
 
@@ -108,7 +109,11 @@ export class RabbitmqEventConsumer {
       return;
     }
 
-    await handler(envelope);
+    const carrier = Object.fromEntries(Object.entries(headers).map(([key, value]) => [key, Buffer.isBuffer(value) ? value.toString() : String(value)]));
+    const parent = propagation.extract(context.active(), carrier);
+    await trace.getTracer('auth-service').startActiveSpan(`consume ${routingKey}`, { kind: SpanKind.CONSUMER }, parent, async (span) => {
+      try { await handler(envelope); } finally { span.end(); }
+    });
   }
 
   private scheduleResubscribe(): void {
