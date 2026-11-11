@@ -2,6 +2,7 @@ import type { Logger } from 'pino';
 import type { ProcessedEventRepository } from '../../../domain/repositories/processed-event.repository.ts';
 import type { RabbitMqConnection } from './rabbitmq.connection.ts';
 import { parseEnvelope, type EventEnvelope } from './event-envelope.ts';
+import { withConsumeSpan } from '../../observability/amqp-trace-context.ts';
 
 export type EventHandler = (envelope: EventEnvelope) => Promise<void>;
 
@@ -55,7 +56,12 @@ export class RabbitmqEventConsumer {
 
       await channel.consume(this.queue, (message) => {
         if (!message) return;
-        void this.dispatch(message.content.toString(), message.fields.routingKey)
+        // Reto 8: el evento se procesa dentro de la traza de quien lo publicó (traceparent en
+        // las cabeceras del mensaje), así la cuenta suspendida y la notificación posterior
+        // aparecen en Zipkin colgando del scheduler de vacaciones o del alta del empleado.
+        void withConsumeSpan(message.properties.headers, this.queue, message.fields.routingKey, () =>
+          this.dispatch(message.content.toString(), message.fields.routingKey),
+        )
           .then(() => channel.ack(message))
           .catch((error: unknown) => {
             this.logger.error(

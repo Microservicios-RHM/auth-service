@@ -109,7 +109,13 @@ async function bootstrap(): Promise<void> {
 
   await consumer.start();
 
-  const app = createApp(repository, hasher, tokens, eventPublisher, logger);
+  const app = createApp(repository, hasher, tokens, eventPublisher, logger, {
+    database: async () => {
+      await pool.query('SELECT 1');
+      return true;
+    },
+    messageBroker: () => brokerConnection.isConnected(),
+  });
   const server = http.createServer(app);
 
   server.listen(config.port, '0.0.0.0', () => {

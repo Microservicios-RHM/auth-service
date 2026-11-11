@@ -11,7 +11,9 @@ import type { TokenService } from './domain/gateways/token-service.gateway.ts';
 import type { EventPublisher } from './domain/gateways/event-publisher.gateway.ts';
 import { AuthController } from './infrastructure/http/controllers/auth.controller.ts';
 import { createAuthRouter } from './infrastructure/http/routes/auth.routes.ts';
-import healthRouter from './infrastructure/http/routes/health.routes.ts';
+import { createHealthRouter } from './infrastructure/http/routes/health.routes.ts';
+import type { HealthCheck } from './infrastructure/observability/health.ts';
+import { createHttpMetrics } from './infrastructure/observability/metrics.ts';
 import documentationRouter from './infrastructure/http/routes/documentation.routes.ts';
 import { createAuthenticator } from './infrastructure/http/middlewares/authenticate.middleware.ts';
 import { errorHandler } from './infrastructure/http/middlewares/error-handler.middleware.ts';
@@ -27,8 +29,11 @@ export function createApp(
   tokens: TokenService,
   eventPublisher: EventPublisher,
   logger: Logger,
+  healthChecks: Record<string, HealthCheck> = {},
 ) {
   const app = express();
+  const serviceName = process.env.OTEL_SERVICE_NAME ?? 'auth-service';
+  const metrics = createHttpMetrics(serviceName);
   const controller = new AuthController(
     new Login(repository, hasher, tokens),
     new RecoverPassword(repository, tokens, eventPublisher),
@@ -37,6 +42,10 @@ export function createApp(
   );
 
   app.disable('x-powered-by');
+  // Reto 8: el middleware de métricas va primero para medir también las respuestas de error, y
+  // /metrics queda fuera de helmet/JSON y del access log (Prometheus lo consulta cada 15 s).
+  app.use(metrics.middleware);
+  app.get('/metrics', metrics.handler);
   app.use(createRequestLogger(logger));
   app.use('/', documentationRouter);
   app.use(helmet());
@@ -46,7 +55,7 @@ export function createApp(
   });
   app.use(express.json({ limit: '1mb' }));
 
-  app.use('/', healthRouter);
+  app.use('/', createHealthRouter(serviceName, healthChecks));
   app.use('/auth', createAuthRouter(controller, createAuthenticator(tokens)));
 
   app.use((_req, res) => {
